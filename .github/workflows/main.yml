@@ -28,6 +28,6 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .  # 这里在项目根目录找Dockerfile构建
-          platforms: linux/amd64,linux/arm64 # 可配置多个平台
+          platforms: linux/amd64,linux/arm64,linux/arm # 可配置多个平台
           push: true 
-          tags: hslr/sun-panel # 这里要改成你的Docker Hub 名字
+          tags: hslr/sun-panel-docker-build-test # 这里要改成你的Docker Hub 名字
