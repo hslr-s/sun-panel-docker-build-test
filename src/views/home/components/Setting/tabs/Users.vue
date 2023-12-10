@@ -1,19 +1,22 @@
 <script lang="ts" setup>
 import { h, onMounted, reactive, ref } from 'vue'
-import { NButton, NDataTable, NDropdown, useDialog, useMessage } from 'naive-ui'
+import { NAlert, NButton, NDataTable, NDropdown, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns, PaginationProps } from 'naive-ui'
 import EditUser from './EditUser/index.vue'
-import { deletes as usersDeletes, getList as usersGetList } from '@/api/panel/users'
+import { getPublicVisitUser, setPublicVisitUser, deletes as usersDeletes, getList as usersGetList } from '@/api/panel/users'
 import { SvgIcon } from '@/components/common'
-import { useUserStore } from '@/store'
+import { useAuthStore } from '@/store'
+import { t } from '@/locales'
+import { AdminAuthRole } from '@/enums/admin'
 
 const message = useMessage()
-const userStore = useUserStore()
+const authStore = useAuthStore()
 const tableIsLoading = ref<boolean>(false)
 const editUserDialogShow = ref<boolean>(false)
 const keyWord = ref<string>()
 const editUserUserInfo = ref<User.Info>()
 const dialog = useDialog()
+const publicVisitUserId = ref<number | null>(null)
 
 const createColumns = ({
   update,
@@ -22,20 +25,38 @@ const createColumns = ({
 }): DataTableColumns<User.Info> => {
   return [
     {
-      title: '账号',
+      title: t('common.username'),
       key: 'username',
       render(row: User.Info) {
-        if (row.username === userStore.userInfo.username)
-          return `${row.username} (当前账号)`
-        return row.username
+        let publicVisitHtml = ''
+        if (publicVisitUserId.value && publicVisitUserId.value === row.id)
+          publicVisitHtml = `[${t('adminSettingUsers.pblicText')}]`
+
+        if (row.username === authStore.userInfo?.username)
+          return `${publicVisitHtml}${row.username} (${t('adminSettingUsers.currentUseUsername')})`
+        return publicVisitHtml + row.username
       },
     },
     {
-      title: '昵称',
+      title: t('common.nikeName'),
       key: 'name',
     },
     {
-      title: '操作',
+      title: t('adminSettingUsers.role'),
+      key: 'role',
+      render(row) {
+        switch (row.role) {
+          case AdminAuthRole.admin:
+            return h(NTag, { type: 'info' }, t('common.role.admin'))
+          case AdminAuthRole.regularUser:
+            return h(NTag, t('common.role.regularUser'))
+          default:
+            return '-'
+        }
+      },
+    },
+    {
+      title: t('common.action'),
       key: '',
       render(row) {
         const btn = h(
@@ -59,17 +80,34 @@ const createColumns = ({
         return h(NDropdown, {
           trigger: 'click',
           onSelect(key: string | number) {
-            console.log(key)
             switch (key) {
               case 'update':
                 update(row)
                 break
+              case 'publicMode':
+                // 取消
+                if (publicVisitUserId.value && publicVisitUserId.value === row.id) {
+                  setPublicVisitUser(null).then(({ code }) => {
+                    if (code === 0)
+                      publicVisitUserId.value = null
+                  })
+                }
+                else {
+                // 设置
+                  setPublicVisitUser(row.id as number).then(({ code }) => {
+                    if (code === 0)
+                      publicVisitUserId.value = row.id as number
+                    else if (code === 1111)
+                      message.error('用户不存在，请刷新后再试')
+                  })
+                }
+                break
               case 'delete':
                 dialog.warning({
-                  title: '警告',
-                  content: `你确定删除${row.name}(${row.username})？`,
-                  positiveText: '确定',
-                  negativeText: '取消',
+                  title: t('common.warning'),
+                  content: t('adminSettingUsers.deletePromptContent', { name: row.name, username: row.username }),
+                  positiveText: t('common.confirm'),
+                  negativeText: t('common.cancel'),
                   onPositiveClick: () => {
                     deletes([row.id as number])
                   },
@@ -82,11 +120,15 @@ const createColumns = ({
           },
           options: [
             {
-              label: '修改信息',
+              label: t('common.edit'),
               key: 'update',
             },
             {
-              label: '删除',
+              label: t('adminSettingUsers.setOrUnsetPublicMode'),
+              key: 'publicMode',
+            },
+            {
+              label: t('common.delete'),
               key: 'delete',
             },
           ],
@@ -120,7 +162,7 @@ const pagination = reactive({
     getList(null)
   },
   prefix(item: PaginationProps) {
-    return `共 ${item.itemCount} 位用户`
+    return t('adminSettingUsers.userCountText', { count: item.itemCount })
   },
 })
 
@@ -136,7 +178,7 @@ function handleAdd() {
 
 function handelDone() {
   editUserDialogShow.value = false
-  message.success('操作成功')
+  message.success(t('common.success'))
   getList(null)
 }
 
@@ -159,21 +201,27 @@ async function getList(page: number | null) {
 async function deletes(ids: number[]) {
   const { code } = await usersDeletes(ids)
   if (code === 0) {
-    message.success('已删除')
+    message.success(t('common.deleteSuccess'))
     getList(null)
   }
 }
 
 onMounted(() => {
+  getPublicVisitUser<User.Info>().then(({ data }) => {
+    publicVisitUserId.value = data.id || null
+  })
   getList(null)
 })
 </script>
 
 <template>
   <div class="h-[500px] overflow-auto">
-    <div class="mb-[10px]">
+    <NAlert type="info" :bordered="false">
+      {{ $t('adminSettingUsers.alertText') }}
+    </NAlert>
+    <div class="my-[10px]">
       <NButton type="primary" size="small" ghost @click="handleAdd">
-        添加
+        {{ $t('common.add') }}
       </NButton>
     </div>
 

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { defaultState, defaultStatePanelConfig, getLocalState, removeLocalState, setLocalState } from './helper'
 import { router } from '@/router'
-import type { PanelStateNetworkModeEnum } from '@/enum'
+import type { PanelStateNetworkModeEnum } from '@/enums'
 import { get as getUserConfig } from '@/api/panel/userConfig'
 export const usePanelState = defineStore('panel', {
   state: (): Panel.State => getLocalState() || defaultState(),
@@ -37,6 +37,8 @@ export const usePanelState = defineStore('panel', {
       getUserConfig<Panel.userConfig>().then((res) => {
         if (res.code === 0)
           this.panelConfig = res.data.panel
+        else
+          this.resetPanelConfig() // 重置恢复默认
         this.recordState()
       })
     },
